@@ -1,14 +1,31 @@
-pandas>=2.0
-numpy>=1.24
-scikit-learn>=1.3
-xgboost>=2.0
-yfinance>=0.2.40
-pyarrow>=14.0
-PyYAML>=6.0
-joblib>=1.3
-matplotlib>=3.7
-seaborn>=0.12
-plotly>=5.18
-streamlit>=1.30
-scipy>=1.11
-pytest>=7.4
+# Exact versions, not floors.
+#
+# README section 21 promises that the same configuration run twice produces
+# identical results. A `>=` floor cannot deliver that: a rebuild months from
+# now would pull a newer pandas or scikit-learn and silently change every
+# number. These are the versions every figure in the README and
+# INTERVIEW_PREP.md was actually produced with.
+
+# Core
+pandas==2.2.3
+numpy==2.1.3
+scipy==1.15.3
+
+# Models
+scikit-learn==1.6.1
+xgboost==3.1.1
+joblib==1.4.2
+
+# Data
+yfinance==1.7.0
+pyarrow==19.0.0
+PyYAML==6.0.2
+
+# Visualisation and UI
+matplotlib==3.10.0
+seaborn==0.13.2
+plotly==5.24.1
+streamlit==1.45.1
+
+# Testing
+pytest==9.1.1

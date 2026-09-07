@@ -255,6 +255,42 @@ def cmd_report(cfg, args) -> int:
     return 0
 
 
+def cmd_predict(cfg, args) -> int:
+    """One scheduled run: update data, backfill outcomes, predict if new.
+
+    This is the command the daily job invokes. It is idempotent, so running it
+    twice on the same bar is a no-op rather than a duplicate log row.
+    """
+    from src.live import PREDICTION_LOG, load_log, run_daily, scorecard
+
+    result = run_daily(cfg, log_path=PREDICTION_LOG)
+
+    rule(f"LIVE PREDICTION — {cfg.ticker} ({cfg.model})")
+    if result["status"] == "no_new_bar":
+        print(f"  No new bar since {result['bar_date']} — nothing to predict.")
+        print("  (Normal on weekends, market holidays, and repeat runs.)")
+    else:
+        print(f"  Bar closed        {result['bar_date']}")
+        print(f"  Predicted return  {result['prediction']:+.5f}")
+        print(f"  Signal            {result['direction']}")
+        print("  Applies to        the next trading session")
+
+    print(f"\n  Outcomes backfilled this run: {result['outcomes_backfilled']}")
+    print(f"  Log rows: {result['log_rows']}  ->  {PREDICTION_LOG}")
+
+    card = scorecard(load_log(PREDICTION_LOG), cfg.ticker)
+    if card["n_scored"]:
+        print(f"\n  LIVE TRACK RECORD  ({card['first_date']} to {card['last_date']})")
+        print(f"    scored predictions  {card['n_scored']}")
+        print(f"    directional calls   {card['n_directional']}")
+        print(f"    hit rate            {card['hit_rate']:.1%}")
+        print(f"    strategy return     {card['strategy_return']:+.2%}")
+        print(f"    buy and hold        {card['buy_and_hold_return']:+.2%}")
+    else:
+        print("\n  No outcomes scored yet — the track record starts tomorrow.")
+    return 0
+
+
 def cmd_run(cfg, args) -> int:
     """Everything, then the headline numbers."""
     from src.metrics import compare_to_benchmark
@@ -285,6 +321,7 @@ COMMANDS = {
     "walkforward": cmd_walkforward,
     "compare": cmd_compare,
     "stress": cmd_stress,
+    "predict": cmd_predict,
     "report": cmd_report,
     "run": cmd_run,
 }

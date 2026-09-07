@@ -1,0 +1,2 @@
+bar_date,target_date,ticker,model,fingerprint,prediction,signal,realised_return,correct,logged_at
+2026-09-04,,AAPL,xgboost,a7c17f060f,0.004270892124623,1.0,,,2026-09-07T13:02:55+00:00

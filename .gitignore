@@ -16,6 +16,12 @@ data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 
+# ...except the rolling live caches. These are committed deliberately:
+# the scheduled job appends to them each day, and a deployed app on an
+# ephemeral filesystem would otherwise re-download ten years of history on
+# every cold start. ~130KB per ticker.
+!data/raw/*_live.parquet
+
 # Outputs
 outputs/figures/*
 outputs/models/*
@@ -24,6 +30,11 @@ outputs/experiment_log.csv
 !outputs/figures/.gitkeep
 !outputs/models/.gitkeep
 !outputs/reports/.gitkeep
+
+# The live prediction log IS the track record. It must be versioned: the
+# commit timestamps are what prove each prediction was recorded before its
+# outcome was known.
+!outputs/live_predictions.csv
 
 # Streamlit
 .streamlit/secrets.toml

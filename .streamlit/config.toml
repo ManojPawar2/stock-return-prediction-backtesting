@@ -1,0 +1,16 @@
+[theme]
+base = "light"
+primaryColor = "#2563eb"
+
+[server]
+headless = true
+# The app is read-only research output; nothing is uploaded to it.
+maxUploadSize = 5
+
+[browser]
+gatherUsageStats = false
+
+[client]
+# Show a readable message instead of a raw traceback if a page fails,
+# e.g. when Yahoo rate-limits a fresh download.
+showErrorDetails = false

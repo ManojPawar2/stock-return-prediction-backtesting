@@ -1,0 +1,64 @@
+name: Daily prediction
+
+# 21:30 UTC on weekdays.
+#
+# GitHub cron is always UTC and does not follow US daylight saving, so one
+# fixed time has to work in both seasons:
+#
+#   EDT (Mar-Nov, UTC-4): close 20:00 UTC -> this runs 1h30 after
+#   EST (Nov-Mar, UTC-5): close 21:00 UTC -> this runs   30m after
+#
+# 21:30 UTC is therefore safely after the 16:00 ET close year-round. An
+# earlier slot would fire mid-session during EST and fetch a partial bar.
+on:
+  schedule:
+    - cron: "30 21 * * 1-5"
+  workflow_dispatch:           # manual run from the Actions tab
+
+permissions:
+  contents: write              # needed to commit the updated log back
+
+concurrency:
+  group: daily-prediction
+  cancel-in-progress: false    # never interrupt a run mid-write
+
+jobs:
+  predict:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run the prediction job
+        run: python cli.py predict --ticker AAPL --model xgboost --verbose
+
+      - name: Commit the updated log
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add outputs/live_predictions.csv data/raw/AAPL_live.parquet
+
+          # Nothing changes on a weekend, a market holiday, or a repeat run.
+          if git diff --staged --quiet; then
+            echo "No new bar - nothing to commit."
+            exit 0
+          fi
+
+          # The commit timestamp is the whole point: it is external evidence
+          # that the prediction was recorded before its outcome was known.
+          git commit -m "Live prediction $(date -u +%Y-%m-%d)"
+          git push

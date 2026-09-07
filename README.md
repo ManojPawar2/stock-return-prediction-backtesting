@@ -628,9 +628,60 @@ Reproducibility guarantees:
 - Data cached to Parquet, so results do not change when Yahoo revises history
 - Trained models persisted via joblib to `outputs/models/`
 - Each run appends a row to `outputs/experiment_log.csv` with config hash, metrics, and timestamp
-- `requirements.txt` pins the stack
+- `requirements.txt` pins every dependency to an exact version (`==`, never `>=`), so a rebuild months from now cannot pull a newer pandas and silently change the numbers
 
 Running the same config twice produces byte-identical metrics.
+
+---
+
+## 21b. Live Daily Predictions
+
+The pipeline also runs forward. A scheduled job predicts the next session each
+weekday and records the result, turning the project from a backtest into a
+**live forward test**.
+
+```bash
+python cli.py predict --ticker AAPL --model xgboost
+```
+
+### What one run does
+
+1. **Updates the rolling cache** (`data/raw/AAPL_live.parquet`) — refetches the
+   last 7 days *with overlap* so Yahoo's revisions land, and re-downloads the
+   full history if a dividend has shifted the adjusted-close basis.
+2. **Backfills outcomes** for pending predictions, by finding whichever bar
+   actually came next. No holiday calendar is involved.
+3. **Predicts** — but only if a genuinely new, *closed* bar exists.
+
+### Three properties that make it safe to automate
+
+| Property | Why it matters |
+|---|---|
+| **Idempotent** | A retry, a manual re-run, or a double firing is a no-op. The log can never gain a duplicate row. |
+| **Completed bars only** | `bar_is_final()` refuses to predict from a bar still forming. Since the job is idempotent, a partial bar logged once would be frozen in permanently. |
+| **Never retrains** | The scheduled job loads a persisted model and fails loudly if it is missing. Silent retraining would change the model behind the track record. |
+
+### Scheduling
+
+`.github/workflows/daily-prediction.yml` runs at **21:30 UTC on weekdays** —
+after the 16:00 ET close in both EDT and EST, since GitHub cron does not follow
+daylight saving. The job commits the updated log back to the repository.
+
+That commit is the point: **the git timestamp is external evidence that each
+prediction was recorded before its outcome was known** — something no backtest
+can demonstrate about itself.
+
+The dashboard's **Live Signal** page only *reads* this log. It never fetches
+and never predicts, because a Streamlit page runs code only while someone has
+it open; if predicting happened there the record would have a hole on every day
+nobody visited.
+
+### Honest note
+
+Running live does not create an edge. This emits real signals from a model
+that, on ten years of history, loses to buy-and-hold. Its value is as an
+engineering demonstration and an un-fakeable forward test — not as a trading
+system. There is no broker integration and none is planned.
 
 ---
 

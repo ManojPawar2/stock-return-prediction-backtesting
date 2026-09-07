@@ -78,10 +78,11 @@ def test_page_renders_a_title(script):
     assert app.title or app.header, f"{script.name} rendered no heading"
 
 
-def test_there_are_ten_scripts():
-    """One entry point plus nine pages, as the README states."""
-    assert len(ALL_SCRIPTS) == 10
-    assert len(PAGES) == 9
+def test_there_are_eleven_scripts():
+    """One entry point plus ten pages, as the README states."""
+    assert len(ALL_SCRIPTS) == 11
+    assert len(PAGES) == 10
+    assert any(p.name.endswith("Live_Signal.py") for p in PAGES)
 
 
 def test_pages_are_numbered_for_ordering():
