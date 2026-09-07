@@ -18,7 +18,7 @@ import pandas as pd
 import streamlit as st
 
 from .config import Config, ensure_dirs, load_config
-from .data_loader import describe, load_prices
+from .data_loader import describe, load_range
 from .models import available_models
 from .pipeline import PreparedData, TrainedModel, backtest, prepare, train
 from .preprocessing import clean, validate
@@ -37,9 +37,11 @@ def page_setup(title: str, icon: str = PAGE_ICON) -> None:
 # --------------------------------------------------------------------------
 
 
-@st.cache_data(show_spinner="Downloading market data…")
+@st.cache_data(show_spinner="Loading market data…")
 def cached_prices(ticker: str, start: str, end: str, use_cache: bool) -> pd.DataFrame:
-    return load_prices(ticker, start, end, use_cache)
+    # load_range prefers the rolling cache committed to the repository, so a
+    # deployed app serves every page without calling Yahoo on a cold start.
+    return load_range(ticker, start, end, use_cache)
 
 
 @st.cache_data(show_spinner="Validating and cleaning…")

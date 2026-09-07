@@ -570,3 +570,58 @@ def test_run_daily_declines_a_partial_bar(live_env, monkeypatch):
     assert result["status"] == "bar_not_final"
     assert result["prediction"] is None
     assert load_log(log_path).empty, "no row may be written for a partial bar"
+
+
+# =============================================== ROLLING-CACHE PREFERENCE
+
+
+def test_load_range_prefers_the_rolling_cache(tmp_path, monkeypatch):
+    """A deployed app must not hit Yahoo on every cold start."""
+    monkeypatch.setattr(dl, "_download", lambda t, s, e: raw_frame(600))
+    dl.update_cache("TEST", cache_dir=tmp_path)
+
+    calls = []
+
+    def should_not_run(ticker, start, end):
+        calls.append(ticker)
+        return raw_frame(600)
+
+    monkeypatch.setattr(dl, "_download", should_not_run)
+    frame = dl.load_range("TEST", "2015-01-02", "2016-06-01", cache_dir=tmp_path)
+
+    assert not calls, "the rolling cache should have served this without a download"
+    assert len(frame) > 0
+    assert list(frame.columns) == list(dl.COLUMNS)
+    assert frame.index.min() >= pd.Timestamp("2015-01-02")
+    assert frame.index.max() <= pd.Timestamp("2016-06-01")
+
+
+def test_load_range_falls_back_when_the_cache_starts_too_late(tmp_path, monkeypatch):
+    """A cache of only recent bars must not pose as a decade of history."""
+    monkeypatch.setattr(
+        dl, "_download", lambda t, s, e: raw_frame(60, start="2024-01-02")
+    )
+    dl.update_cache("TEST", cache_dir=tmp_path)
+
+    calls = []
+
+    def fallback(ticker, start, end):
+        calls.append(start)
+        return raw_frame(600, start="2015-01-02")
+
+    monkeypatch.setattr(dl, "_download", fallback)
+    dl.load_range("TEST", "2015-01-02", "2017-01-01", cache_dir=tmp_path)
+
+    assert calls, "should have fallen back to a ranged download"
+
+
+def test_load_range_falls_back_with_no_rolling_cache(tmp_path, monkeypatch):
+    calls = []
+
+    def fetch(ticker, start, end):
+        calls.append(ticker)
+        return raw_frame(300)
+
+    monkeypatch.setattr(dl, "_download", fetch)
+    dl.load_range("TEST", "2015-01-02", "2016-01-01", cache_dir=tmp_path)
+    assert calls

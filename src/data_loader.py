@@ -334,6 +334,50 @@ def update_cache(
     return frame
 
 
+def load_range(
+    ticker: str,
+    start: str,
+    end: str,
+    use_cache: bool = True,
+    cache_dir: Path | None = None,
+) -> pd.DataFrame:
+    """Serve a date range, preferring the committed rolling cache.
+
+    The rolling ``*_live.parquet`` is versioned in the repository and spans
+    more history than any single page requests, so slicing it satisfies the
+    whole dashboard without a network call.
+
+    That matters in deployment.  A hosted app runs on an ephemeral filesystem,
+    so the range-keyed cache is wiped on every restart — meaning each cold
+    start would otherwise re-download a decade of history from Yahoo, and
+    repeated requests from one host IP are exactly what gets rate-limited.
+
+    Falls back to :func:`load_prices` when no rolling cache covers the range.
+    """
+    if use_cache:
+        path = live_cache_path(ticker, cache_dir)
+        if path.exists():
+            frame = pd.read_parquet(path)
+            frame.index = pd.DatetimeIndex(pd.to_datetime(frame.index), name="date")
+            lo, hi = pd.Timestamp(start), pd.Timestamp(end)
+            window = frame.loc[(frame.index >= lo) & (frame.index <= hi)]
+            # Only trust it if it genuinely reaches back to the requested
+            # start; a cache holding only recent bars must not masquerade as
+            # ten years of history.
+            covers_start = (
+                len(window) > 0
+                and window.index.min() <= lo + pd.Timedelta(days=10)
+            )
+            if covers_start:
+                logger.info(
+                    "Serving %s %s..%s from the rolling cache (%d rows)",
+                    ticker, start, end, len(window),
+                )
+                return window[list(COLUMNS)]
+
+    return load_prices(ticker, start, end, use_cache, cache_dir)
+
+
 def latest_bar_date(ticker: str, cache_dir: Path | None = None) -> pd.Timestamp | None:
     """Date of the most recent cached bar, or None when nothing is cached."""
     path = live_cache_path(ticker, cache_dir)
