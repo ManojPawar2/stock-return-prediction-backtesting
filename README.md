@@ -52,7 +52,7 @@ The system takes a stock ticker and a date range, and runs a full quantitative r
 |-------|--------------|----------------|
 | **Ingest** | Pull daily OHLCV from Yahoo Finance, cache to Parquet | Reproducible, offline-capable runs |
 | **Validate** | Missing values, duplicates, date monotonicity, non-positive prices, OHLC consistency, gaps | Bad data silently ruins every downstream number |
-| **Engineer** | ~35 features from lagged returns, moving averages, volatility, volume, RSI/MACD/Bollinger | Every feature uses **only past data** |
+| **Engineer** | 43 features from lagged returns, moving averages, volatility, volume, RSI/MACD/Bollinger | Every feature uses **only past data** |
 | **Target** | Next-day return (regression) or up/down (classification) | Explicitly documented, no ambiguity |
 | **Split** | Chronological train / validation / test — never random | Random splits leak the future into the past |
 | **Train** | Linear Regression, Ridge, Random Forest, XGBoost | Baseline first, complexity second |
@@ -270,7 +270,7 @@ clean(df)    -> pd.DataFrame          # sorts, de-duplicates, forward-fills gaps
 
 ### `src/features.py`
 ```python
-build_features(df, config) -> pd.DataFrame    # ~35 columns, all backward-looking
+build_features(df, config) -> pd.DataFrame    # 43 columns, all backward-looking
 feature_columns(df) -> list[str]
 ```
 
@@ -722,28 +722,44 @@ stock-return-prediction-backtesting/
 
 ## 24. Build Roadmap
 
-Features are built and verified one at a time; each is committed only after its tests pass.
+All features are complete. Each was built and verified in turn, and committed only after its tests passed.
 
-- [ ] **F01** Project scaffold, config system, requirements, gitignore
-- [ ] **F02** Data loader with Parquet caching and schema normalisation
-- [ ] **F03** Validation and cleaning layer
-- [ ] **F04** Technical indicators (RSI, MACD, Bollinger, ATR, OBV)
-- [ ] **F05** Feature engineering with leakage tests
-- [ ] **F06** Target construction and chronological splits
-- [ ] **F07** Model factory, training pipeline, persistence
-- [ ] **F08** Evaluation metrics
-- [ ] **F09** Signal generation
-- [ ] **F10** Backtesting engine with costs, slippage, trade log
-- [ ] **F11** Performance and risk metrics
-- [ ] **F12** Walk-forward validation
-- [ ] **F13** Regime analysis
-- [ ] **F14** Stress testing
-- [ ] **F15** Research report generator
-- [ ] **F16** Plotting layer
-- [ ] **F17** CLI
-- [ ] **F18** Streamlit app + all 10 pages
-- [ ] **F19** Full test suite green
-- [ ] **F20** Interview preparation document
+**Status: 20/20 complete · 459 tests passing · ~10,600 lines**
+
+- [x] **F01** Project scaffold, config system, requirements, gitignore
+- [x] **F02** Data loader with Parquet caching and schema normalisation
+- [x] **F03** Validation and cleaning layer
+- [x] **F04** Technical indicators (RSI, MACD, Bollinger, ATR, OBV)
+- [x] **F05** Feature engineering with leakage tests
+- [x] **F06** Target construction and chronological splits
+- [x] **F07** Model factory, training pipeline, persistence
+- [x] **F08** Evaluation metrics
+- [x] **F09** Signal generation
+- [x] **F10** Backtesting engine with costs, slippage, trade log
+- [x] **F11** Performance and risk metrics
+- [x] **F12** Walk-forward validation
+- [x] **F13** Regime analysis
+- [x] **F14** Stress testing
+- [x] **F15** Research report generator
+- [x] **F16** Plotting layer
+- [x] **F17** CLI
+- [x] **F18** Streamlit app + all 10 pages
+- [x] **F19** Full test suite green
+- [x] **F20** Interview preparation document
+
+### What verification actually caught
+
+Each feature was checked against real market data rather than only against
+fixtures, which surfaced five genuine defects that unit tests alone would have
+missed:
+
+| Defect | Symptom | Cause |
+|---|---|---|
+| Adjusted/raw price mix | Stochastic %K read −296 on a 0–100 scale; ATR read 5.9% of price | Yahoo adjusts only the close; AAPL's 4:1 split then created a fake gap |
+| Non-canonical RSI | Values diverged from Wilder's definition over the first ~40 bars | `ewm(adjust=False)` seeds with the first observation, not the SMA of the first *n* |
+| Sharpe of a constant series | Returned 2.4 × 10¹⁶ instead of "undefined" | `sd == 0` never fires — the float std of a repeated constant is ~1e-19 |
+| Drawdown ignored day one | A 10% fall on the first day reported zero drawdown | The running peak started at day one's equity instead of at initial capital |
+| Parquet cache mismatch | A cached frame compared unequal to a fresh one | `DatetimeIndex.freq` does not survive a Parquet round-trip |
 
 ---
 
@@ -796,7 +812,7 @@ See **[INTERVIEW_PREP.md](INTERVIEW_PREP.md)** for a plain-English explanation o
 
 **Stock Return Prediction & Strategy Backtesting** — *Python, Pandas, NumPy, scikit-learn, XGBoost, Streamlit*
 
-- Built an end-to-end quantitative research pipeline over 10 years of daily OHLCV data, engineering 35+ leakage-free features (lagged returns, volatility, volume, RSI/MACD/Bollinger) with automated tests proving no lookahead bias.
+- Built an end-to-end quantitative research pipeline over 10 years of daily OHLCV data, engineering 43 leakage-free features (lagged returns, volatility, volume, RSI/MACD/Bollinger) with automated tests proving no lookahead bias.
 - Compared Linear Regression, Ridge, Random Forest and XGBoost under chronological and walk-forward validation, evaluating on both statistical error and realised trading performance.
 - Developed a vectorised backtesting engine with one-bar execution lag, transaction costs, slippage and full trade logging, benchmarked against buy-and-hold across return, Sharpe, and max-drawdown.
 - Delivered a 10-page Streamlit research dashboard with regime analysis, parameter stress-testing and auto-generated research reports; validated by a pytest suite covering leakage, alignment and metric correctness.
