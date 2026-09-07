@@ -108,6 +108,43 @@ python cli.py run --ticker AAPL --start 2015-01-01 --end 2024-12-31 --model xgbo
 pytest -q
 ```
 
+### Deploy the dashboard
+
+The repository is deployment-ready: a fresh clone serves **all 11 pages with
+zero network calls**, because the rolling price cache is versioned alongside
+the code (see §21b).
+
+**Streamlit Community Cloud** — free, and the whole setup is four clicks:
+
+1. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub.
+2. **New app** → pick this repository, branch `main`, main file `app.py`.
+3. **Deploy**. First build takes 2–3 minutes.
+4. Enable the scheduled job: repository **Settings → Actions → General →
+   Workflow permissions** → *Read and write permissions*. Without this the
+   daily job cannot commit its prediction log.
+
+Every push redeploys automatically, so the daily job's commits keep the live
+app current with no further action.
+
+**Docker** — for anywhere else:
+
+```bash
+docker build -t stock-research .
+docker run -p 8501:8501 stock-research
+```
+
+> The Streamlit Cloud path above is verified end to end. The `Dockerfile` is
+> provided for portability but has not been build-tested.
+
+Deployment notes:
+
+- `requirements.txt` pins exact versions; `runtime.txt` pins Python 3.11.
+- `.streamlit/config.toml` disables usage stats and hides raw tracebacks.
+- No secrets, no credentials, no environment variables are required.
+- Hosted filesystems are ephemeral, so anything written at runtime
+  (`outputs/reports/`, trained models) is lost on restart. Everything needed
+  to *serve* the app is committed.
+
 ---
 
 ## 3. Pipeline Overview
