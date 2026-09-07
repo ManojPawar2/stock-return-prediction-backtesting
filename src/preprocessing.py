@@ -327,6 +327,40 @@ def clean(
     return out, log
 
 
+# --------------------------------------------------------------------------
+# Split / dividend adjustment
+# --------------------------------------------------------------------------
+
+
+def adjust_ohlc(df: pd.DataFrame) -> pd.DataFrame:
+    """Rescale open/high/low onto the same basis as ``adj_close``.
+
+    Yahoo adjusts only the close for splits and dividends and leaves
+    open/high/low raw.  Mixing the two is a silent, serious bug: any indicator
+    touching both series (ATR, stochastic %K, anything using the previous
+    close) sees a fictitious gap on every split date.
+
+    On AAPL, whose 4:1 split lands mid-sample, the unadjusted mix pushes
+    stochastic %K to -296 (its range is 0-100) and inflates ATR from roughly
+    2% of price to 5.9%.
+
+    The fix is one shared factor per bar::
+
+        factor = adj_close / close
+        adj_open, adj_high, adj_low = open * factor, high * factor, low * factor
+
+    Because every field in a bar is scaled identically, OHLC ordering
+    (``low <= open, close <= high``) is preserved exactly.  ``volume`` is left
+    alone: it is a share count, not a price.
+    """
+    out = df.copy()
+    factor = out["adj_close"] / out["close"].replace(0.0, np.nan)
+    for col in ("open", "high", "low"):
+        out[col] = out[col] * factor
+    out["close"] = out["adj_close"]
+    return out
+
+
 def validate_and_clean(
     df: pd.DataFrame, **kwargs: Any
 ) -> tuple[pd.DataFrame, ValidationReport, ValidationReport, CleaningLog]:

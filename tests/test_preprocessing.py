@@ -245,3 +245,50 @@ def test_cleaning_resolves_the_errors_it_should():
     assert after.is_valid, f"cleaning left errors: {after.errors}"
     assert log.rows_before >= log.rows_after
     assert "->" in log.summary()
+
+
+# ------------------------------------------------------------ adjust_ohlc
+
+
+def test_adjust_ohlc_puts_every_field_on_the_adjusted_basis():
+    from src.preprocessing import adjust_ohlc
+
+    df = make_clean(10)
+    df["adj_close"] = df["close"] * 0.25          # simulate a 4:1 split
+    out = adjust_ohlc(df)
+
+    pd.testing.assert_series_equal(out["close"], out["adj_close"], check_names=False)
+    assert out["high"].iloc[0] == pytest.approx(df["high"].iloc[0] * 0.25)
+    assert out["low"].iloc[0] == pytest.approx(df["low"].iloc[0] * 0.25)
+    assert out["open"].iloc[0] == pytest.approx(df["open"].iloc[0] * 0.25)
+
+
+def test_adjust_ohlc_preserves_bar_ordering():
+    from src.preprocessing import adjust_ohlc
+
+    df = make_clean(30)
+    # A factor that changes partway through, like a real split date.
+    df["adj_close"] = df["close"] * np.where(np.arange(30) < 15, 0.25, 1.0)
+    out = adjust_ohlc(df)
+
+    assert (out["high"] >= out["low"]).all()
+    assert (out["close"] <= out["high"] + 1e-9).all()
+    assert (out["close"] >= out["low"] - 1e-9).all()
+    assert (out["open"] <= out["high"] + 1e-9).all()
+    assert (out["open"] >= out["low"] - 1e-9).all()
+
+
+def test_adjust_ohlc_leaves_volume_untouched():
+    from src.preprocessing import adjust_ohlc
+
+    df = make_clean(10)
+    df["adj_close"] = df["close"] * 0.5
+    out = adjust_ohlc(df)
+    pd.testing.assert_series_equal(out["volume"], df["volume"])
+
+
+def test_adjust_ohlc_is_a_noop_when_close_is_already_adjusted():
+    from src.preprocessing import adjust_ohlc
+
+    df = make_clean(10)  # adj_close == close already
+    pd.testing.assert_frame_equal(adjust_ohlc(df), df)
