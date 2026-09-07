@@ -1,0 +1,97 @@
+# Default configuration for the Stock Return Prediction & Strategy Backtesting project.
+#
+# Every value here can be overridden by CLI flags or by the Streamlit sidebar.
+# Nothing in src/ hard-codes any of these numbers.
+
+# ---------------------------------------------------------------- data
+ticker: AAPL
+start: "2015-01-01"
+end: "2024-12-31"
+use_cache: true
+
+# Comparison basket used by the multi-ticker stress sweep.
+universe:
+  - AAPL
+  - MSFT
+  - JPM
+  - XOM
+  - KO
+
+# ------------------------------------------------- chronological split
+# train  : start      .. train_end
+# valid  : train_end  .. valid_end   (hyperparameter selection lives here)
+# test   : valid_end  .. end         (touched once, at the very end)
+train_end: "2021-12-31"
+valid_end: "2022-12-31"
+
+# ------------------------------------------------------------- target
+# horizon = 1 means "return from today's close to tomorrow's close".
+target_horizon: 1
+target_kind: regression   # regression | classification
+
+# ---------------------------------------------------------- features
+features:
+  return_windows: [1, 5, 10, 20]
+  return_lags: [1, 2, 3, 4, 5]
+  sma_windows: [5, 10, 20, 50]
+  volatility_windows: [5, 20, 60]
+  volume_window: 20
+  rsi_period: 14
+  macd_fast: 12
+  macd_slow: 26
+  macd_signal: 9
+  bollinger_window: 20
+  bollinger_std: 2.0
+  atr_period: 14
+  include_calendar: true
+
+# ------------------------------------------------------------- models
+model: xgboost   # linear | ridge | random_forest | xgboost
+
+model_params:
+  linear: {}
+  ridge:
+    alpha: 1.0
+  random_forest:
+    n_estimators: 300
+    max_depth: 5
+    min_samples_leaf: 50
+    max_features: 0.5
+    n_jobs: -1
+  xgboost:
+    n_estimators: 300
+    max_depth: 3
+    learning_rate: 0.03
+    subsample: 0.8
+    colsample_bytree: 0.8
+    reg_lambda: 1.0
+    min_child_weight: 20
+    n_jobs: -1
+
+# ------------------------------------------------------------ signals
+# A prediction above the threshold goes long; below -threshold goes short
+# only when allow_short is true. Otherwise the position is flat.
+signal_threshold: 0.0
+allow_short: false
+
+# ---------------------------------------------------------- backtest
+transaction_cost_bps: 5.0   # one-way cost, in basis points of turnover
+slippage_bps: 2.0           # additional one-way execution slippage
+initial_capital: 10000.0
+risk_free_rate: 0.0         # annualised, used by Sharpe / Sortino
+trading_days: 252
+
+# ------------------------------------------------------ walk-forward
+walk_forward:
+  n_folds: 5
+  mode: expanding   # expanding | rolling
+  min_train_days: 500
+
+# ------------------------------------------------------- stress test
+stress:
+  cost_grid_bps: [0, 1, 5, 10, 20, 50]
+  threshold_grid: [0.0, 0.0005, 0.001, 0.002, 0.003, 0.005]
+  seed_grid: [0, 1, 2, 3, 4]
+
+# ---------------------------------------------------- reproducibility
+seed: 42
