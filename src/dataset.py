@@ -209,6 +209,19 @@ def build_dataset(df: pd.DataFrame, cfg: Config) -> tuple[pd.DataFrame, Split, l
     return with_target, split, feature_columns(with_target)
 
 
+def realised_returns(df: pd.DataFrame, price_col: str = "close") -> pd.Series:
+    """The return realised **on** each day: ``close[t] / close[t-1] - 1``.
+
+    This is what the backtester consumes, and it is deliberately *not* the
+    same series as the target.  The target at ``t`` looks forward to ``t+1``;
+    this looks back from ``t``.  Getting the two confused shifts every
+    strategy return by one day, which is the exact failure the execution lag
+    exists to prevent, so the conversion lives here once rather than being
+    re-derived at each call site.
+    """
+    return df[price_col].pct_change().fillna(0.0).rename("asset_return")
+
+
 def class_balance(y: pd.Series) -> dict[str, float]:
     """Up/down day proportions, for the classification variant."""
     up = float((y > 0).mean())

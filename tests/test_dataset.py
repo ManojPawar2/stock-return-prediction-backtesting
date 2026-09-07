@@ -259,3 +259,36 @@ def test_target_summary_keys(ohlcv, cfg):
     assert s["horizon_days"] == 1
     assert s["n"] > 0
     assert 20 < s["pct_positive"] < 80
+
+
+# -------------------------------------------------- realised vs forward return
+
+
+def test_realised_returns_look_backward_not_forward(ohlcv, cfg):
+    """The backtester's input must be the return earned ON each day."""
+    from src.dataset import realised_returns
+
+    df = attach_target(ohlcv, cfg)
+    realised = realised_returns(df)
+    expected = df["close"].pct_change().fillna(0.0)
+    assert np.allclose(realised, expected)
+
+
+def test_realised_return_is_the_forward_return_shifted_by_one(ohlcv, cfg):
+    """The two series describe the same moves, offset by exactly one day."""
+    from src.dataset import realised_returns
+
+    df = attach_target(ohlcv, cfg)
+    realised = realised_returns(df)
+    forward = df["return_1d_fwd"]
+    # forward[t] is the move from t to t+1, i.e. realised[t+1].
+    assert np.allclose(forward.iloc[:-1], realised.iloc[1:], atol=1e-12)
+
+
+def test_realised_returns_never_leak_the_future(ohlcv, cfg):
+    from src.dataset import realised_returns
+
+    df = attach_target(ohlcv, cfg)
+    full = realised_returns(df)
+    truncated = realised_returns(df.iloc[:200])
+    assert np.allclose(full.iloc[:200], truncated, atol=1e-12)
