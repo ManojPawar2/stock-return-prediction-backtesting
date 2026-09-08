@@ -114,14 +114,30 @@ The repository is deployment-ready: a fresh clone serves **all 11 pages with
 zero network calls**, because the rolling price cache is versioned alongside
 the code (see §21b).
 
-**Streamlit Community Cloud** — free, and the whole setup is four clicks:
+**Streamlit Community Cloud** — free:
 
 1. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub.
-2. **New app** → pick this repository, branch `main`, main file `app.py`.
-3. **Deploy**. First build takes 2–3 minutes.
-4. Enable the scheduled job: repository **Settings → Actions → General →
+2. **New app** → this repository, branch `main`, main file `app.py`.
+3. **Open "Advanced settings" and set Python version to 3.13.** This step is
+   not optional — see the warning below.
+4. **Deploy**. The first build takes 3–5 minutes.
+5. Enable the scheduled job: repository **Settings → Actions → General →
    Workflow permissions** → *Read and write permissions*. Without this the
    daily job cannot commit its prediction log.
+
+> **Set the Python version, or the build fails.** Streamlit Cloud defaults to
+> the newest interpreter it has and **ignores `runtime.txt`** — that file is a
+> Heroku/Render convention. Deployed against Python 3.14 this build fails on
+> `pyarrow`, because seven of the pinned scientific packages have no 3.14
+> wheels yet and pip falls back to compiling from source, which needs a
+> `cmake` the image does not have.
+>
+> Python **3.11, 3.12 and 3.13** all work: every pinned dependency installs as
+> a prebuilt Linux wheel, verified by installing `requirements.txt` inside a
+> `python:3.13-slim` container.
+>
+> The Python version cannot be changed after an app is created. If you already
+> deployed on the wrong one, delete the app and recreate it.
 
 Every push redeploys automatically, so the daily job's commits keep the live
 app current with no further action.

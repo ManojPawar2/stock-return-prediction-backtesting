@@ -6,6 +6,15 @@
 # number. These are the versions every figure in the README and
 # INTERVIEW_PREP.md was actually produced with.
 
+# Requires Python 3.11, 3.12 or 3.13.
+#
+# Not 3.14: seven of the packages below have no 3.14 wheels, so pip falls back
+# to building them from source and fails on a missing cmake. Verified by
+# installing this file inside python:3.13-slim.
+#
+# Streamlit Cloud ignores runtime.txt — set the interpreter under the app's
+# Advanced settings instead.
+
 # Core
 pandas==2.2.3
 numpy==2.1.3
