@@ -52,13 +52,26 @@ jobs:
 
           git add outputs/live_predictions.csv data/raw/AAPL_live.parquet
 
-          # Nothing changes on a weekend, a market holiday, or a repeat run.
+          # Nothing changes on a repeat run.
           if git diff --staged --quiet; then
-            echo "No new bar - nothing to commit."
+            echo "Nothing changed - nothing to commit."
             exit 0
           fi
 
-          # The commit timestamp is the whole point: it is external evidence
-          # that the prediction was recorded before its outcome was known.
-          git commit -m "Live prediction $(date -u +%Y-%m-%d)"
+          # The message must reflect what actually happened. On a market
+          # holiday the price cache can still shift by a few bytes while no
+          # prediction is made, and labelling that "Live prediction" would put
+          # a claim in the history that the log does not support -- which is
+          # exactly the audit trail this job exists to keep trustworthy.
+          if git diff --staged --quiet -- outputs/live_predictions.csv; then
+            MESSAGE="Refresh price cache $(date -u +%Y-%m-%d)"
+          else
+            # The commit timestamp is the whole point here: it is external
+            # evidence that the prediction was recorded before its outcome
+            # was known.
+            MESSAGE="Live prediction $(date -u +%Y-%m-%d)"
+          fi
+
+          echo "Committing: $MESSAGE"
+          git commit -m "$MESSAGE"
           git push
