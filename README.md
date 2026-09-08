@@ -133,8 +133,9 @@ docker build -t stock-research .
 docker run -p 8501:8501 stock-research
 ```
 
-> The Streamlit Cloud path above is verified end to end. The `Dockerfile` is
-> provided for portability but has not been build-tested.
+Both paths are verified: the image builds, serves `HTTP 200` with a healthy
+`/healthz`, and runs the CLI against the committed cache from inside the
+container. The image is ~2.6 GB, most of it scikit-learn, SciPy and XGBoost.
 
 Deployment notes:
 
@@ -770,7 +771,10 @@ stock-return-prediction-backtesting/
 │   ├── regime.py                # Volatility / trend regime analysis
 │   ├── stress.py                # Parameter sweeps
 │   ├── report.py                # Markdown research report
-│   └── plots.py                 # Shared Plotly figures
+│   ├── plots.py                 # Shared Plotly figures
+│   ├── pipeline.py              # End-to-end assembly (CLI + dashboard)
+│   ├── live.py                  # Live daily predictions + track record
+│   └── ui.py                    # Shared Streamlit sidebar and caching
 │
 ├── pages/
 │   ├── 1_Market_Data.py
@@ -781,7 +785,8 @@ stock-return-prediction-backtesting/
 │   ├── 6_Comparison.py
 │   ├── 7_Walk_Forward.py
 │   ├── 8_Stress_Test.py
-│   └── 9_Research_Report.py
+│   ├── 9_Research_Report.py
+│   └── 10_Live_Signal.py        # Read-only view of the live track record
 │
 ├── tests/
 │   ├── test_data_loader.py
@@ -802,6 +807,14 @@ stock-return-prediction-backtesting/
 │   ├── reports/
 │   └── experiment_log.csv
 │
+├── .github/workflows/
+│   ├── tests.yml                # Runs the suite + an offline cold-start check
+│   └── daily-prediction.yml     # The scheduled live job (21:30 UTC, weekdays)
+│
+├── .streamlit/config.toml
+├── Dockerfile
+├── runtime.txt
+│
 └── docs/
     └── original-spec.md         # The original project specification
 ```
@@ -812,7 +825,7 @@ stock-return-prediction-backtesting/
 
 All features are complete. Each was built and verified in turn, and committed only after its tests passed.
 
-**Status: 20/20 complete · 459 tests passing · ~10,600 lines**
+**Status: 22/22 complete · 502 tests passing · ~12,000 lines**
 
 - [x] **F01** Project scaffold, config system, requirements, gitignore
 - [x] **F02** Data loader with Parquet caching and schema normalisation
@@ -834,6 +847,8 @@ All features are complete. Each was built and verified in turn, and committed on
 - [x] **F18** Streamlit app + all 10 pages
 - [x] **F19** Full test suite green
 - [x] **F20** Interview preparation document
+- [x] **F21** Live daily predictions via a scheduled job
+- [x] **F22** Deployment: pinned dependencies, CI, Docker, Streamlit config
 
 ### What verification actually caught
 

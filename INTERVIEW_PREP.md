@@ -24,6 +24,7 @@ Every number in this document came from an actual run on AAPL, 2015–2024. Noth
    - [Metrics](#metrics)
    - [Results and judgement](#results-and-judgement)
    - [Engineering](#engineering)
+   - [The live system](#the-live-system)
    - [Hard and adversarial questions](#hard-and-adversarial-questions)
 8. [Questions to ask them](#8-questions-to-ask-them)
 9. [Traps to avoid](#9-traps-to-avoid)
@@ -38,6 +39,8 @@ Every number in this document came from an actual run on AAPL, 2015–2024. Noth
 > It pulls ten years of daily price data, engineers 43 leakage-free features, trains four models under time-based validation, converts predictions into trading signals, and backtests them with realistic transaction costs against a buy-and-hold baseline.
 >
 > The honest answer is no — the models found only a marginal edge that disappears after costs. The interesting part is the rigour that makes me confident that answer is *correct* rather than a bug: automated tests that prove no future information leaks into any feature, and that the backtester's one-day execution lag is genuinely applied.
+>
+> It also runs forward. A scheduled job predicts each session on live data and commits the result, so the git history proves every prediction was recorded before its outcome was known — which is the one claim a backtest can never make about itself.
 
 **Why this framing works:** you lead with a clear question, a clear method, and an honest result. Interviewers are far more suspicious of "my model got 95% accuracy on stock prices" than of a careful negative finding.
 
@@ -463,6 +466,41 @@ The dashboard is for exploration; the CLI is for reproducibility. `python cli.py
 
 ---
 
+### The live system
+
+*This is the strongest section to steer toward. It's the part that isn't a backtest.*
+
+**Q: Does it run on live data?**
+Yes. A GitHub Actions job fires at 21:30 UTC every weekday, fetches the bar that just closed, predicts the next session, and commits the result. The dashboard has a Live Signal page, but it's strictly read-only — it never fetches and never predicts.
+
+**Q: Why is the dashboard read-only? Wouldn't a "fetch now" button be simpler?**
+A Streamlit page only executes code while someone has it open. If predicting happened there, the track record would have a hole on every day nobody visited — and a forward test with gaps is worthless. The scheduled job runs whether anyone is watching or not; the page is just a window onto its output.
+
+**Q: What makes it safe to run unattended?**
+Three properties. It's **idempotent** — a retry or a double firing is a no-op, so the log can't gain duplicate rows. It **refuses partial bars** — and that guard exists precisely *because* it's idempotent: a partial bar logged once would be frozen in permanently, since the job would never revisit it. And it **never retrains** — it loads a persisted model and fails loudly if it's missing, because silent retraining would change the model behind the track record.
+
+**Q: What was the hardest part of the live data layer?**
+The dividend problem, and it's not obvious. `adj_close` is *retroactive* — when a dividend is paid, every historical adjusted close shifts onto a new basis. An append-only update would leave old rows on the old basis and new rows on the new one, silently corrupting every return that spans the boundary. So the job compares the `adj_close / close` factor before and after each fetch and re-downloads the full history when it moves. It's cheap, and it fires maybe four times a year.
+
+I also refetch the last seven days with *overlap* rather than appending from the last date, because Yahoo revises recent bars — de-duplicating with `keep="last"` is what lets those corrections land instead of freezing the first version in forever.
+
+**Q: How do you handle market holidays?**
+I don't compute a calendar — that's fragile. A prediction records the bar it was made from, and the outcome is backfilled later by looking up whichever bar *actually* came next in the data. Weekends, holidays and unscheduled closures all fall out for free. It handled Labor Day 2026 with no special case.
+
+**Q: The cron is a fixed UTC time. Doesn't daylight saving break it?**
+It would have. My first draft ran at 20:30 UTC, which is 16:30 ET in summer but **15:30 ET in winter** — mid-session, fetching partial bars for five months of the year. GitHub cron is always UTC and ignores DST, so the fix was to pick 21:30 UTC, which lands after the 16:00 ET close in both EDT and EST.
+
+**Q: Why does it matter that the job commits to git?**
+Because the commit timestamp is external evidence that each prediction was recorded *before* its outcome was known. That's the one thing a backtest can never demonstrate about itself — no matter how carefully I built the pipeline, you only have my word that I didn't iterate until it looked good. The live log can't be curve-fitted, because git's history says when each row was written.
+
+**Q: So does the live system make money?**
+No, and I wouldn't expect it to. It emits real signals from a model that loses to buy-and-hold on ten years of history. Its value is twofold: it's a genuine engineering artifact — incremental data pipeline, model versioning, scheduled jobs, idempotency, monitoring — and it's an un-fakeable forward test. There's no broker integration and I'm not planning one; that would undermine the honest framing that makes the project credible.
+
+**Q: How would you know if the live results contradicted the backtest?**
+That's the interesting scenario. The backtest says roughly 51.5% directional accuracy. If the live hit rate came in at 60% over a few hundred calls, I wouldn't celebrate — I'd go looking for a bug in the live path, because the two should agree. Divergence between backtest and forward test is almost always an implementation difference, not a discovery.
+
+---
+
 ### Hard and adversarial questions
 
 **Q: Isn't this just a toy? Real quant funds don't do this.**
@@ -522,7 +560,7 @@ Good questions signal that you think like a researcher.
 
 **Pitch:** End-to-end quantitative research pipeline testing whether ML can predict daily stock returns well enough to beat buy-and-hold. Answer: no, and here's the rigour that makes me trust that answer.
 
-**Scale:** 43 features · 4 models · 2,515 days · 459 tests · ~10,600 lines
+**Scale:** 43 features · 4 models · 2,515 days · 502 tests · ~12,000 lines · 11-page dashboard · live daily job
 
 **Headline numbers**
 
@@ -543,6 +581,10 @@ Good questions signal that you think like a researcher.
 **Best bug story:** mixing adjusted close with unadjusted high across AAPL's 4:1 split drove Stochastic %K to −296 on a 0–100 scale
 
 **Best judgement line:** "It fails to beat the benchmark even at zero cost, so the limitation is the signal, not the friction."
+
+**Best differentiator:** it runs live. A scheduled job predicts each session and commits the result, so the git timestamps prove every prediction was logged before its outcome existed — a forward test that cannot be curve-fitted.
+
+**Best live-system story:** `adj_close` is retroactive, so a dividend re-bases every historical row; an append-only update would silently corrupt every return spanning the boundary.
 
 **Key honest framing:** *"The hard part wasn't building the model. The hard part was making sure the model wasn't secretly cheating."*
 
